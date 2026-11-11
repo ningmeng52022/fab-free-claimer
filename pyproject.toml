@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fab-free-claimer"
+version = "1.0.0"
+description = "Bulk-claim every free asset on Fab.com into your library, with incremental sync and resumable checkpoints."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ningmeng52022" }]
+keywords = ["fab", "epic-games", "unreal-engine", "quixel", "megascans", "assets", "automation"]
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Utilities",
+]
+dependencies = ["requests>=2.28.0"]
+
+[project.urls]
+Homepage = "https://github.com/ningmeng52022/fab-free-claimer"
+Issues = "https://github.com/ningmeng52022/fab-free-claimer/issues"
+
+[project.scripts]
+fab-free-claimer = "fab_free_claimer.cli:main"
+
+[tool.setuptools]
+packages = ["fab_free_claimer"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"

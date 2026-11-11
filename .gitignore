@@ -1,0 +1,23 @@
+# --- credentials / local state: NEVER commit ---
+cookie.txt
+*.cookie
+cookies.txt
+fab-state/
+state/
+*.jsonl
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# --- editors / os ---
+.idea/
+.vscode/
+.DS_Store
