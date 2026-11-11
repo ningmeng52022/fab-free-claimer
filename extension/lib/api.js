@@ -14,6 +14,7 @@ export class AuthError extends Error {}
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let activeTabId = null;
+let tabPromise = null;
 
 async function ping(tabId) {
   try {
@@ -26,10 +27,18 @@ async function ping(tabId) {
 
 /**
  * Find a fab.com tab that runs content.js, or open a background one.
- * A freshly opened tab always has the content script; tabs opened before the
- * extension was installed do not, which is what ping() detects.
+ * Memoized so a burst of concurrent claims opens at most one tab.
  */
-async function ensureTab() {
+function ensureTab() {
+  if (tabPromise) return tabPromise;
+  tabPromise = resolveTab().catch((error) => {
+    tabPromise = null;
+    throw error;
+  });
+  return tabPromise;
+}
+
+async function resolveTab() {
   if (activeTabId !== null && (await ping(activeTabId))) return activeTabId;
 
   const tabs = await chrome.tabs.query({ url: "https://www.fab.com/*" });
@@ -46,6 +55,8 @@ async function ensureTab() {
     if (await ping(activeTabId)) return activeTabId;
     await sleep(250);
   }
+  activeTabId = null;
+  tabPromise = null;
   throw new AuthError("could not reach a fab.com tab - open fab.com once, then retry");
 }
 
@@ -57,6 +68,7 @@ async function call({ method = "GET", url, form, json }) {
     reply = await chrome.tabs.sendMessage(tabId, { type: "fabRequest", method, url: target, form, json });
   } catch (error) {
     activeTabId = null;
+    tabPromise = null;
     throw new Error(`tab relay failed: ${(error && error.message) || error}`);
   }
   if (!reply) throw new Error("empty reply from fab.com tab");
@@ -110,7 +122,8 @@ export async function owned(uid) {
 
 /**
  * Add one listing to the library.
- * Returns "ok", "fatal_401"/"fatal_403", "http_<code>" or "retry_exhausted".
+ * Returns { status, detail } where status is "ok", "fatal_401"/"fatal_403",
+ * "http_<code>" or "retry_exhausted", and detail keeps the server's own message.
  * The endpoint is idempotent: claiming an owned listing returns 204 again.
  */
 export async function claim(uid, offerId) {
@@ -122,19 +135,29 @@ export async function claim(uid, offerId) {
         url: `/listings/${uid}/add-to-library`,
         form: { offer_id: offerId },
       });
-    } catch {
+    } catch (error) {
+      if (attempt === 3) {
+        return { status: "retry_exhausted", detail: String((error && error.message) || error) };
+      }
       await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
       continue;
     }
-    if ([200, 201, 204].includes(reply.status)) return "ok";
-    if (reply.status === 401 || reply.status === 403) return `fatal_${reply.status}`;
+    if ([200, 201, 204].includes(reply.status)) return { status: "ok", detail: "" };
+    if (reply.status === 401 || reply.status === 403) {
+      return { status: `fatal_${reply.status}`, detail: trim(reply.text) };
+    }
     if ([429, 500, 502, 503, 504].includes(reply.status)) {
+      if (attempt === 3) return { status: `http_${reply.status}`, detail: trim(reply.text) };
       await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
       continue;
     }
-    return `http_${reply.status}`;
+    return { status: `http_${reply.status}`, detail: trim(reply.text) };
   }
-  return "retry_exhausted";
+  return { status: "retry_exhausted", detail: "gave up after 4 attempts" };
+}
+
+function trim(text) {
+  return String(text || "").replace(/\s+/g, " ").slice(0, 200);
 }
 
 /** One page of search results. Accepts a params string or a full URL (cursor). */

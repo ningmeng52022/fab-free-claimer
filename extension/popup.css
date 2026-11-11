@@ -186,3 +186,31 @@ button.danger {
   color: var(--muted);
   white-space: pre-wrap;
 }
+
+.diag {
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: var(--panel);
+}
+
+.diag summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.diag[open] summary {
+  margin-bottom: 6px;
+}
+
+.diag .log {
+  max-height: 160px;
+  margin-bottom: 6px;
+}
+
+.diag button {
+  width: 100%;
+  font-size: 12px;
+}

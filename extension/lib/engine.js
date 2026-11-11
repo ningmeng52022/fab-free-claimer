@@ -19,7 +19,7 @@ import { clear, deleteMany, getAll, getAllKeys, getMeta, putMany, reset, setMeta
 
 const TICK_BUDGET_MS = 25000; // stay well inside the worker lifetime
 const HEARTBEAT_MS = 15000;
-const CLAIM_WORKERS = 16;
+const CLAIM_WORKERS = 8; // a single relay tab is the bottleneck; 8 keeps it responsive
 const ENUM_WORKERS = 8;
 
 const CONTROL_KEY = "control";
@@ -37,14 +37,38 @@ export async function setControl(value) {
 }
 
 export async function getSummary() {
-  const [control, checkpoint, counts, account, run] = await Promise.all([
+  const [control, checkpoint, counts, account, run, failed] = await Promise.all([
     getControl(),
     getMeta(CHECKPOINT_KEY, {}),
     stats(),
     getMeta("account", null),
     getMeta(SUMMARY_KEY, { ok: 0, fail: 0 }),
+    getAll("failed"),
   ]);
-  return { control, checkpoint, counts, account, run };
+
+  const breakdown = {};
+  for (const row of failed) {
+    const status = row.status || "unknown";
+    breakdown[status] = (breakdown[status] || 0) + 1;
+  }
+  const sample = failed.find((row) => row.detail) || null;
+
+  return {
+    control,
+    checkpoint: {
+      phase: checkpoint.phase,
+      partitions: (checkpoint.partitions || []).length,
+      enumDone: checkpoint.enumDone || [],
+      resumeCursors: Object.keys(checkpoint.enumState || {}).length,
+    },
+    counts,
+    account,
+    run,
+    failures: Object.entries(breakdown)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, count]) => ({ status, count })),
+    sampleError: sample ? { uid: sample.uid, status: sample.status, detail: sample.detail } : null,
+  };
 }
 
 export async function stop() {
@@ -143,6 +167,14 @@ export async function tick() {
     }
 
     const done = await claimSlice(control, checkpoint, summary, deadline);
+    if (checkpoint.probeError) {
+      await setControl({
+        ...control,
+        state: "error",
+        error: `first claim failed: ${checkpoint.probeError}`,
+      });
+      return { state: "error", remaining: false };
+    }
     if (!done) {
       await setMeta(CHECKPOINT_KEY, checkpoint);
       await setMeta(SUMMARY_KEY, summary);
@@ -153,16 +185,25 @@ export async function tick() {
     checkpoint.phase = "done";
     await setMeta(CHECKPOINT_KEY, checkpoint);
     await setMeta(SUMMARY_KEY, summary);
-    await setControl({ ...control, state: "idle" });
+    await setControl({ ...control, state: "idle", error: null, errorCount: 0 });
     return { state: "idle", remaining: false };
   } catch (error) {
     if (error instanceof AuthError) {
       await setControl({ ...control, state: "error", error: String(error.message || error) });
       return { state: "error", remaining: false };
     }
+    // Surface repeated generic failures (relay down, network gone...) instead of
+    // looping forever with a "running" badge and no explanation.
+    const errorCount = (control.errorCount || 0) + 1;
+    await setControl({
+      ...control,
+      error: String((error && error.message) || error),
+      errorCount,
+      ...(errorCount >= 3 ? { state: "error" } : {}),
+    });
     await setMeta(CHECKPOINT_KEY, checkpoint);
     await setMeta(SUMMARY_KEY, summary);
-    throw error;
+    return { state: errorCount >= 3 ? "error" : "running", remaining: errorCount < 3 };
   } finally {
     release();
   }
@@ -252,20 +293,53 @@ async function claimSlice(control, checkpoint, summary, deadline) {
   const pending = listings.filter((listing) => !skip.has(listing.uid));
   if (!pending.length) return true;
 
+  // One probe before the batch: if a single claim cannot succeed there is no
+  // point hammering thousands of them, and the popup gets the real reason.
+  if (!checkpoint.probed) {
+    const first = pending[0];
+    const result = first.offer
+      ? await claim(first.uid, first.offer)
+      : { status: "missing_offer", detail: "listing has no offer id" };
+    checkpoint.probed = true;
+    if (result.status === "ok") {
+      summary.ok += 1;
+      await putMany("claimed", [{ uid: first.uid }]);
+      pending.shift();
+    } else if (result.status.startsWith("fatal")) {
+      throw new AuthError(`${result.status} ${result.detail || ""}`.trim());
+    } else {
+      checkpoint.probeError = `${result.status} ${result.detail || ""}`.trim();
+      await setMeta(CHECKPOINT_KEY, checkpoint);
+      await setMeta(SUMMARY_KEY, summary);
+      return false;
+    }
+    await setMeta(CHECKPOINT_KEY, checkpoint);
+    await setMeta(SUMMARY_KEY, summary);
+  }
+
   let index = 0;
   await withPool(new Array(CLAIM_WORKERS).fill(0), CLAIM_WORKERS, async () => {
     while (index < pending.length && Date.now() < deadline) {
       const listing = pending[index];
       index += 1;
-      const status = await claim(listing.uid, listing.offer);
+
+      if (!listing.offer) {
+        summary.fail += 1;
+        await putMany("failed", [
+          { uid: listing.uid, status: "missing_offer", detail: "listing has no offer id" },
+        ]);
+        continue;
+      }
+
+      const { status, detail } = await claim(listing.uid, listing.offer);
       if (status === "ok") {
         summary.ok += 1;
         await putMany("claimed", [{ uid: listing.uid }]);
       } else if (status.startsWith("fatal")) {
-        throw new AuthError(status);
+        throw new AuthError(`${status} ${detail || ""}`.trim());
       } else {
         summary.fail += 1;
-        await putMany("failed", [{ uid: listing.uid, status }]);
+        await putMany("failed", [{ uid: listing.uid, status, detail }]);
       }
     }
   });

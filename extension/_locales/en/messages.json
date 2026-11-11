@@ -204,5 +204,14 @@
   },
   "errNoCsrf": {
     "message": "fab_csrftoken cookie not found - sign in to fab.com first."
+  },
+  "diagTitle": {
+    "message": "Diagnostics"
+  },
+  "copyDiagBtn": {
+    "message": "Copy diagnostics"
+  },
+  "logDiagCopied": {
+    "message": "diagnostics copied to clipboard"
   }
 }

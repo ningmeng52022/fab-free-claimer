@@ -18,7 +18,12 @@ const els = {
   verify: document.getElementById("verify"),
   reset: document.getElementById("reset"),
   log: document.getElementById("log"),
+  diag: document.getElementById("diag"),
+  diagBody: document.getElementById("diagBody"),
+  copyDiag: document.getElementById("copyDiag"),
 };
+
+let lastSummary = null;
 
 const lines = [];
 
@@ -57,7 +62,31 @@ const BADGE = {
   error: "badgeError",
 };
 
+function renderDiagnostics() {
+  const summary = lastSummary || {};
+  const { control = {}, checkpoint = {}, counts = {}, failures = [], sampleError } = summary;
+  const failureText = failures.length
+    ? failures.map((item) => `${item.status} x${item.count}`).join("\n")
+    : "(none)";
+  els.diagBody.textContent = [
+    `state       : ${control.state || "-"}`,
+    `phase       : ${checkpoint.phase || "-"}`,
+    `partitions  : ${checkpoint.partitions || 0}`,
+    `partition ok: ${(checkpoint.enumDone || []).length}`,
+    `resume cur  : ${checkpoint.resumeCursors || 0}`,
+    `listings    : ${counts.listings || 0}`,
+    `claimed     : ${counts.claimed || 0}`,
+    `failed      : ${counts.failed || 0}`,
+    `errors      : ${control.errorCount || 0}`,
+    `last error  : ${control.error || "-"}`,
+    `failure mix :`,
+    failureText,
+    `sample      : ${sampleError ? `${sampleError.status} ${sampleError.detail || ""}` : "-"}`,
+  ].join("\n");
+}
+
 function renderState(summary) {
+  lastSummary = summary;
   const { control = {}, checkpoint = {}, counts = {}, account, run = {} } = summary;
   const state = control.state || "idle";
 
@@ -119,6 +148,7 @@ async function refresh() {
     return;
   }
   const summary = renderState(response.data);
+  renderDiagnostics();
   if (summary.checkpoint?.phase === "done" && !finishedLogged) {
     finishedLogged = true;
     const run = summary.run || {};
@@ -173,6 +203,15 @@ els.reset.addEventListener("click", async () => {
   if (!response.ok) log(t("logResetFailed", response.error));
   else log(t("logResetDone"));
   refresh();
+});
+
+els.copyDiag.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(els.diagBody.textContent || "");
+    log(t("logDiagCopied"));
+  } catch (error) {
+    log(t("logVerifyFailed", String(error)));
+  }
 });
 
 applyTranslations();

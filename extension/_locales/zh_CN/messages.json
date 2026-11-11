@@ -204,5 +204,14 @@
   },
   "errNoCsrf": {
     "message": "找不到 fab_csrftoken，请先在浏览器里登录 fab.com。"
+  },
+  "diagTitle": {
+    "message": "诊断信息"
+  },
+  "copyDiagBtn": {
+    "message": "复制诊断信息"
+  },
+  "logDiagCopied": {
+    "message": "诊断信息已复制到剪贴板"
   }
 }
