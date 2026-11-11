@@ -11,7 +11,17 @@ const API = "https://www.fab.com/i";
 
 export class AuthError extends Error {}
 
+/** Fab/Cloudflare throttling - must back off, never treated as a permanent failure. */
+export class RateLimitError extends Error {}
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Cloudflare answers a throttled request with an HTML challenge page. */
+function looksBlocked(text) {
+  if (!text) return false;
+  const head = text.slice(0, 400).toLowerCase();
+  return head.startsWith("<") || head.includes("cf_challenge") || head.includes("just a moment");
+}
 
 let activeTabId = null;
 let tabPromise = null;
@@ -96,6 +106,9 @@ export async function get(path, tries = 3) {
       await sleep(1000 * (attempt + 1));
       continue;
     }
+    if (reply.status === 429 || looksBlocked(reply.text)) {
+      throw new RateLimitError(`throttled on ${path}`);
+    }
     if (reply.status === 200) return parse(reply);
     if (reply.status === 401 || reply.status === 403) {
       throw new AuthError(`HTTP ${reply.status}`);
@@ -143,10 +156,13 @@ export async function claim(uid, offerId) {
       continue;
     }
     if ([200, 201, 204].includes(reply.status)) return { status: "ok", detail: "" };
+    if (reply.status === 429 || looksBlocked(reply.text)) {
+      return { status: "rate_limited", detail: trim(reply.text) };
+    }
     if (reply.status === 401 || reply.status === 403) {
       return { status: `fatal_${reply.status}`, detail: trim(reply.text) };
     }
-    if ([429, 500, 502, 503, 504].includes(reply.status)) {
+    if ([500, 502, 503, 504].includes(reply.status)) {
       if (attempt === 3) return { status: `http_${reply.status}`, detail: trim(reply.text) };
       await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
       continue;

@@ -213,5 +213,13 @@
   },
   "logDiagCopied": {
     "message": "诊断信息已复制到剪贴板"
+  },
+  "hintCooldown": {
+    "message": "被 Fab 限流（429），$1 秒后自动继续",
+    "placeholders": {
+      "secs": {
+        "content": "$1"
+      }
+    }
   }
 }

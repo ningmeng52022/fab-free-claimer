@@ -7,7 +7,7 @@
  * loses at most one slice.
  */
 
-import { AuthError, categoriesTree, claim, get, me, owned } from "./api.js";
+import { AuthError, RateLimitError, categoriesTree, claim, get, me, owned } from "./api.js";
 import {
   QUIXEL_SELLERS,
   buildFreePartitions,
@@ -19,8 +19,10 @@ import { clear, deleteMany, getAll, getAllKeys, getMeta, putMany, reset, setMeta
 
 const TICK_BUDGET_MS = 25000; // stay well inside the worker lifetime
 const HEARTBEAT_MS = 15000;
-const CLAIM_WORKERS = 8; // a single relay tab is the bottleneck; 8 keeps it responsive
-const ENUM_WORKERS = 8;
+const CLAIM_WORKERS = 4; // Fab throttles hard above this from a residential IP
+const ENUM_WORKERS = 4;
+const CLAIM_GAP_MS = 180; // small pause between claims keeps Cloudflare calm
+const COOLDOWN_MS = 90 * 1000; // wait this long after a 429 / challenge page
 
 const CONTROL_KEY = "control";
 const CHECKPOINT_KEY = "checkpoint";
@@ -87,6 +89,9 @@ export async function start(options) {
     knownPages: options.knownPages || 0,
     reconcile: Boolean(options.reconcile),
     startedAt: Date.now(),
+    cooldownUntil: 0,
+    errorCount: 0,
+    error: null,
   });
   await setMeta(CHECKPOINT_KEY, { phase: "enumerate", enumDone: [], enumState: {} });
   await setMeta(SUMMARY_KEY, { ok: 0, fail: 0, skipped: 0 });
@@ -114,7 +119,8 @@ async function withPool(items, limit, worker) {
       try {
         await worker(item);
       } catch (error) {
-        if (error instanceof AuthError) throw error;
+        // Auth and throttling must abort the slice; anything else is per-item noise.
+        if (error instanceof AuthError || error instanceof RateLimitError) throw error;
         console.warn("worker failed", error);
       }
     }
@@ -139,6 +145,12 @@ function keepAlive() {
 export async function tick() {
   const control = await getControl();
   if (control.state !== "running") return { state: control.state, remaining: false };
+
+  // Backing off after a 429: report "running" so the alarm keeps firing, but do
+  // no work until the cooldown expires.
+  if (control.cooldownUntil && Date.now() < control.cooldownUntil) {
+    return { state: "running", remaining: true };
+  }
 
   const release = keepAlive();
   const deadline = Date.now() + TICK_BUDGET_MS;
@@ -166,7 +178,12 @@ export async function tick() {
       return { state: "running", remaining: true };
     }
 
+    const okBefore = summary.ok;
     const done = await claimSlice(control, checkpoint, summary, deadline);
+    if (summary.ok - okBefore >= 40 && (control.workers || CLAIM_WORKERS) < 8) {
+      control.workers = (control.workers || CLAIM_WORKERS) + 1;
+      await setControl(control);
+    }
     if (checkpoint.probeError) {
       await setControl({
         ...control,
@@ -188,6 +205,20 @@ export async function tick() {
     await setControl({ ...control, state: "idle", error: null, errorCount: 0 });
     return { state: "idle", remaining: false };
   } catch (error) {
+    if (error instanceof RateLimitError) {
+      const until = Date.now() + COOLDOWN_MS;
+      await setControl({
+        ...control,
+        state: "running",
+        cooldownUntil: until,
+        workers: Math.max(2, Math.floor((control.workers || CLAIM_WORKERS) / 2)),
+        throttleCount: (control.throttleCount || 0) + 1,
+        error: `throttled by Fab (HTTP 429) - pausing ${Math.round(COOLDOWN_MS / 1000)}s`,
+      });
+      await setMeta(CHECKPOINT_KEY, checkpoint);
+      await setMeta(SUMMARY_KEY, summary);
+      return { state: "running", remaining: true, cooldownUntil: until };
+    }
     if (error instanceof AuthError) {
       await setControl({ ...control, state: "error", error: String(error.message || error) });
       return { state: "error", remaining: false };
@@ -305,6 +336,8 @@ async function claimSlice(control, checkpoint, summary, deadline) {
       summary.ok += 1;
       await putMany("claimed", [{ uid: first.uid }]);
       pending.shift();
+    } else if (result.status === "rate_limited") {
+      throw new RateLimitError("probe throttled");
     } else if (result.status.startsWith("fatal")) {
       throw new AuthError(`${result.status} ${result.detail || ""}`.trim());
     } else {
@@ -318,7 +351,8 @@ async function claimSlice(control, checkpoint, summary, deadline) {
   }
 
   let index = 0;
-  await withPool(new Array(CLAIM_WORKERS).fill(0), CLAIM_WORKERS, async () => {
+  const workers = Math.max(1, Math.min(8, control.workers || CLAIM_WORKERS));
+  await withPool(new Array(workers).fill(0), workers, async () => {
     while (index < pending.length && Date.now() < deadline) {
       const listing = pending[index];
       index += 1;
@@ -335,12 +369,16 @@ async function claimSlice(control, checkpoint, summary, deadline) {
       if (status === "ok") {
         summary.ok += 1;
         await putMany("claimed", [{ uid: listing.uid }]);
+      } else if (status === "rate_limited") {
+        // Never record a throttle as a failure - the listing must stay pending.
+        throw new RateLimitError("claim throttled");
       } else if (status.startsWith("fatal")) {
         throw new AuthError(`${status} ${detail || ""}`.trim());
       } else {
         summary.fail += 1;
         await putMany("failed", [{ uid: listing.uid, status, detail }]);
       }
+      if (CLAIM_GAP_MS) await new Promise((resolve) => setTimeout(resolve, CLAIM_GAP_MS));
     }
   });
 

@@ -125,6 +125,9 @@ function renderState(summary) {
     els.hint.textContent = /fatal_(401|403)|HTTP (401|403)/.test(raw)
       ? t("hintAuthError")
       : raw || t("hintAuthError");
+  } else if (control.cooldownUntil && control.cooldownUntil > Date.now()) {
+    const seconds = Math.max(1, Math.round((control.cooldownUntil - Date.now()) / 1000));
+    els.hint.textContent = t("hintCooldown", seconds);
   } else if (checkpoint.phase === "enumerate" && state === "running") {
     els.hint.textContent = t("hintEnumerating", doneParts, totalParts);
   } else if (checkpoint.phase === "claim" && state === "running") {

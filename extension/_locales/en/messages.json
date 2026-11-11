@@ -213,5 +213,13 @@
   },
   "logDiagCopied": {
     "message": "diagnostics copied to clipboard"
+  },
+  "hintCooldown": {
+    "message": "Throttled by Fab (429) - resuming in $1s",
+    "placeholders": {
+      "secs": {
+        "content": "$1"
+      }
+    }
   }
 }
