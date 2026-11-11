@@ -84,7 +84,10 @@ function renderState(summary) {
   els.stop.disabled = state === "idle" && !total;
 
   if (state === "error") {
-    els.hint.textContent = control.error || t("hintAuthError");
+    const raw = control.error || "";
+    els.hint.textContent = /fatal_(401|403)|HTTP (401|403)/.test(raw)
+      ? t("hintAuthError")
+      : raw || t("hintAuthError");
   } else if (checkpoint.phase === "enumerate" && state === "running") {
     els.hint.textContent = t("hintEnumerating", (checkpoint.enumDone || []).length);
   } else if (checkpoint.phase === "claim" && state === "running") {

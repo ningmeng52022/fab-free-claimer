@@ -1,6 +1,8 @@
 /**
- * Logic tests for the extension. Run with: node --test extension/tests
- * No network: chrome.cookies and fetch are stubbed.
+ * Logic tests for the extension. Run with: node --test extension/tests/enum.test.mjs
+ *
+ * No network: chrome.tabs is stubbed, which is exactly how the extension talks to
+ * fab.com (the service worker relays every request through a fab.com tab).
  */
 
 import assert from "node:assert/strict";
@@ -15,10 +17,25 @@ import {
   toListing,
 } from "../lib/enum.js";
 
-function stubChrome() {
+/** Install a fake chrome.tabs that answers with the given routes. */
+function stubTabs(routes) {
+  const requested = [];
   globalThis.chrome = {
-    cookies: { get: async () => ({ value: "test-token" }) },
+    tabs: {
+      query: async () => [{ id: 1 }],
+      create: async () => ({ id: 1 }),
+      sendMessage: async (_tabId, message) => {
+        if (message.type === "ping") return { ok: true };
+        requested.push(message.url);
+        const key = Object.keys(routes).find(
+          (candidate) => message.url.endsWith(candidate) || message.url.includes(candidate)
+        );
+        const payload = key ? routes[key] : { results: [], next: null };
+        return { status: 200, text: JSON.stringify(payload) };
+      },
+    },
   };
+  return requested;
 }
 
 function freeItem(uid, title = "asset") {
@@ -68,52 +85,59 @@ test("toListing keeps free listings and drops paid ones", () => {
 });
 
 test("collectPartition follows cursors and stops on known pages", async () => {
-  stubChrome();
-  const pages = {
+  const known = new Set(Array.from({ length: PAGE_SIZE }, (_, i) => `old-${i}`));
+  const requested = stubTabs({
     "categories=x&is_free=1": {
       results: [freeItem("new-1"), freeItem("new-2"), paidItem("paid")],
       next: "https://www.fab.com/i/listings/search?cursor=2",
     },
-    "https://www.fab.com/i/listings/search?cursor=2": {
+    "cursor=2": {
       results: Array.from({ length: PAGE_SIZE }, (_, i) => freeItem(`old-${i}`)),
       next: "https://www.fab.com/i/listings/search?cursor=3",
     },
-    "https://www.fab.com/i/listings/search?cursor=3": {
-      results: [freeItem("should-not-be-reached")],
-      next: null,
-    },
-  };
-  const fetched = [];
-  globalThis.fetch = async (url) => {
-    fetched.push(url);
-    const key = Object.keys(pages).find((candidate) => url.endsWith(candidate) || url.includes(candidate));
-    return { status: 200, json: async () => pages[key] || { results: [], next: null } };
-  };
+    "cursor=3": { results: [freeItem("unreachable")], next: null },
+  });
 
-  const known = new Set(
-    Array.from({ length: PAGE_SIZE }, (_, i) => `old-${i}`)
-  );
-  const { found, pages: pageCount } = await collectPartition("categories=x&is_free=1", known, 1);
+  const { found, pages } = await collectPartition("categories=x&is_free=1", known, 1);
 
   assert.deepEqual(found.map((row) => row.uid), ["new-1", "new-2"]);
-  assert.equal(pageCount, 2, "stops after one page without new items");
-  assert.equal(fetched.length, 2, "third page is never requested");
+  assert.equal(pages, 2, "stops after one page without new items");
+  assert.equal(requested.length, 2, "third page is never requested");
 });
 
 test("collectPartition without knownPages walks to the end", async () => {
-  stubChrome();
   let page = 0;
-  globalThis.fetch = async () => {
-    page += 1;
-    return {
-      status: 200,
-      json: async () => ({
-        results: [freeItem(`u-${page}-0`), freeItem(`u-${page}-1`)],
-        next: page < 3 ? `https://www.fab.com/i/listings/search?cursor=${page}` : null,
-      }),
-    };
+  globalThis.chrome = {
+    tabs: {
+      query: async () => [{ id: 1 }],
+      create: async () => ({ id: 1 }),
+      sendMessage: async (_tabId, message) => {
+        if (message.type === "ping") return { ok: true };
+        page += 1;
+        const payload = {
+          results: [freeItem(`u-${page}-0`), freeItem(`u-${page}-1`)],
+          next: page < 3 ? `https://www.fab.com/i/listings/search?cursor=${page}` : null,
+        };
+        return { status: 200, text: JSON.stringify(payload) };
+      },
+    },
   };
   const { found, pages } = await collectPartition("is_free=1", new Set(), 0);
   assert.equal(pages, 3);
   assert.equal(found.length, 6);
+});
+
+test("a 403 from the relay is reported as an auth failure", async () => {
+  globalThis.chrome = {
+    tabs: {
+      query: async () => [{ id: 1 }],
+      create: async () => ({ id: 1 }),
+      sendMessage: async (_tabId, message) => {
+        if (message.type === "ping") return { ok: true };
+        return { status: 403, text: "{}" };
+      },
+    },
+  };
+  const { AuthError } = await import("../lib/api.js");
+  await assert.rejects(() => collectPartition("is_free=1", new Set(), 0), AuthError);
 });

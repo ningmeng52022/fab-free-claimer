@@ -1,15 +1,22 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "__MSG_extDesc__",
   "default_locale": "zh_CN",
-  "permissions": ["cookies", "alarms", "storage", "unlimitedStorage"],
+  "permissions": ["alarms", "storage", "unlimitedStorage"],
   "host_permissions": ["https://www.fab.com/*"],
   "background": {
     "service_worker": "background.js",
     "type": "module"
   },
+  "content_scripts": [
+    {
+      "matches": ["https://www.fab.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "__MSG_actionTitle__",

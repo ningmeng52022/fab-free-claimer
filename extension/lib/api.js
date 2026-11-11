@@ -1,81 +1,94 @@
 /**
- * Talks to the Fab web API from inside the browser.
+ * Fab API transport.
  *
- * Because the extension holds host permissions for fab.com, the browser attaches
- * the session cookies automatically - there is no cookie to copy around.
- * Only the CSRF token has to be forwarded explicitly.
+ * Every call is relayed to a fab.com tab (content.js) so that Origin, Referer,
+ * cookies and the CSRF token are exactly what the website itself would send.
+ * Calling straight from the service worker fails with 403 on POST, because the
+ * extension origin can never match the CSRF check.
  */
 
 const API = "https://www.fab.com/i";
 
 export class AuthError extends Error {}
 
-let csrfToken = null;
-
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Localized string with a safe fallback (chrome.i18n is absent in tests). */
-function t(key, fallback) {
+let activeTabId = null;
+
+async function ping(tabId) {
   try {
-    return chrome.i18n.getMessage(key) || fallback;
+    const reply = await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    return Boolean(reply && reply.ok);
   } catch {
-    return fallback;
+    return false;
   }
 }
 
-async function csrf() {
-  if (csrfToken) return csrfToken;
-  const cookie = await chrome.cookies.get({
-    url: "https://www.fab.com/",
-    name: "fab_csrftoken",
-  });
-  if (!cookie) {
-    throw new AuthError(
-      t("errNoCsrf", "fab_csrftoken cookie not found - open fab.com and sign in first.")
-    );
+/**
+ * Find a fab.com tab that runs content.js, or open a background one.
+ * A freshly opened tab always has the content script; tabs opened before the
+ * extension was installed do not, which is what ping() detects.
+ */
+async function ensureTab() {
+  if (activeTabId !== null && (await ping(activeTabId))) return activeTabId;
+
+  const tabs = await chrome.tabs.query({ url: "https://www.fab.com/*" });
+  for (const tab of tabs) {
+    if (tab.id !== undefined && (await ping(tab.id))) {
+      activeTabId = tab.id;
+      return activeTabId;
+    }
   }
-  csrfToken = cookie.value;
-  return csrfToken;
+
+  const created = await chrome.tabs.create({ url: "https://www.fab.com/", active: false });
+  activeTabId = created.id;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    if (await ping(activeTabId)) return activeTabId;
+    await sleep(250);
+  }
+  throw new AuthError("could not reach a fab.com tab - open fab.com once, then retry");
 }
 
-/** Forget the cached token, e.g. after the user signs in again. */
-export function resetToken() {
-  csrfToken = null;
+async function call({ method = "GET", url, form, json }) {
+  const tabId = await ensureTab();
+  const target = url.startsWith("http") ? url : `${API}${url}`;
+  let reply;
+  try {
+    reply = await chrome.tabs.sendMessage(tabId, { type: "fabRequest", method, url: target, form, json });
+  } catch (error) {
+    activeTabId = null;
+    throw new Error(`tab relay failed: ${(error && error.message) || error}`);
+  }
+  if (!reply) throw new Error("empty reply from fab.com tab");
+  if (reply.error) throw new Error(reply.error);
+  return reply;
 }
 
-async function raw(path, { method = "GET", body, headers = {} } = {}) {
-  const url = path.startsWith("http") ? path : `${API}${path}`;
-  const token = await csrf();
-  return fetch(url, {
-    method,
-    body,
-    credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "X-CsrfToken": token,
-      ...headers,
-    },
-  });
+function parse(reply) {
+  try {
+    return JSON.parse(reply.text);
+  } catch {
+    throw new Error(`unexpected response (HTTP ${reply.status})`);
+  }
 }
 
 /** GET a JSON document with bounded retries. */
 export async function get(path, tries = 3) {
   let lastError;
   for (let attempt = 0; attempt < tries; attempt += 1) {
-    let response;
+    let reply;
     try {
-      response = await raw(path);
+      reply = await call({ url: path });
     } catch (error) {
-      if (error instanceof AuthError) throw error;
       lastError = error;
       await sleep(1000 * (attempt + 1));
       continue;
     }
-    if (response.status === 200) return response.json();
-    if (response.status === 401 || response.status === 403) {
-      throw new AuthError(`HTTP ${response.status}`);
+    if (reply.status === 200) return parse(reply);
+    if (reply.status === 401 || reply.status === 403) {
+      throw new AuthError(`HTTP ${reply.status}`);
     }
-    lastError = new Error(`HTTP ${response.status} for ${url}`);
+    lastError = new Error(`HTTP ${reply.status} for ${path}`);
     await sleep(1000 * (attempt + 1));
   }
   throw lastError;
@@ -102,26 +115,24 @@ export async function owned(uid) {
  */
 export async function claim(uid, offerId) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    let reply;
     try {
-      const form = new FormData();
-      form.append("offer_id", offerId);
-      const response = await raw(`/listings/${uid}/add-to-library`, {
+      reply = await call({
         method: "POST",
-        body: form,
+        url: `/listings/${uid}/add-to-library`,
+        form: { offer_id: offerId },
       });
-      if ([200, 201, 204].includes(response.status)) return "ok";
-      if (response.status === 401 || response.status === 403) {
-        return `fatal_${response.status}`;
-      }
-      if ([429, 500, 502, 503, 504].includes(response.status)) {
-        await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
-        continue;
-      }
-      return `http_${response.status}`;
-    } catch (error) {
-      if (error instanceof AuthError) return "fatal_401";
+    } catch {
       await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
+      continue;
     }
+    if ([200, 201, 204].includes(reply.status)) return "ok";
+    if (reply.status === 401 || reply.status === 403) return `fatal_${reply.status}`;
+    if ([429, 500, 502, 503, 504].includes(reply.status)) {
+      await sleep(1000 * 1.5 ** (attempt + 1) + Math.random() * 500);
+      continue;
+    }
+    return `http_${reply.status}`;
   }
   return "retry_exhausted";
 }

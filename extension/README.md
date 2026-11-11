@@ -62,11 +62,19 @@ ones — the key list is identical (45 keys).
 | Permission | Why |
 |---|---|
 | `host_permissions: https://www.fab.com/*` | Call the same endpoints the Fab website calls, with your session |
-| `cookies` | Read the non-HttpOnly `fab_csrftoken` cookie to send `X-CsrfToken` |
+| `content_scripts` on fab.com | The API calls run **inside a fab.com page**, so `Origin`, `Referer`, cookies and the CSRF token match the website exactly |
 | `alarms` | Resume work after the worker is suspended |
 | `storage`, `unlimitedStorage` | Local checkpoints and the ~46k-listing catalogue |
 
 No analytics, no external hosts, no data leaves your browser except to `www.fab.com`.
+
+> **Why a content script instead of plain `fetch` from the service worker?**
+> Fab validates `Origin`/`Referer` on `POST /add-to-library`. A service worker
+> request carries `Origin: chrome-extension://...`, which can never pass that check
+> — the result is `403`. Browsers forbid scripts from setting `Origin`, so the only
+> correct approach is to issue the request from the page origin itself. The
+> extension therefore relays every call through a fab.com tab (opened in the
+> background if you don't have one open).
 
 ## Differences vs the Python CLI
 
