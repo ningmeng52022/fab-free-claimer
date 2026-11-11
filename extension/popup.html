@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fab Free Claimer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Fab Free Claimer</h1>
+      <span id="badge" class="badge idle">idle</span>
+    </header>
+
+    <section class="account">
+      <div class="row">
+        <span class="label">Account</span>
+        <span id="account">-</span>
+      </div>
+      <div class="row">
+        <span class="label">Listings found</span>
+        <span id="listings">0</span>
+      </div>
+      <div class="row">
+        <span class="label">Claimed</span>
+        <span id="claimed">0</span>
+      </div>
+      <div class="row">
+        <span class="label">Failed</span>
+        <span id="failed">0</span>
+      </div>
+      <div class="row">
+        <span class="label">This run</span>
+        <span id="run">-</span>
+      </div>
+    </section>
+
+    <progress id="bar" value="0" max="1"></progress>
+    <p id="hint" class="hint"></p>
+
+    <section class="controls">
+      <label class="field">
+        <span>Scope</span>
+        <select id="mode">
+          <option value="all">Everything free</option>
+          <option value="free">All free types (no Quixel)</option>
+          <option value="quixel">Quixel only</option>
+        </select>
+      </label>
+      <label class="field checkbox">
+        <input type="checkbox" id="incremental" />
+        <span>Incremental (only new releases)</span>
+      </label>
+      <label class="field checkbox">
+        <input type="checkbox" id="reconcile" checked />
+        <span>Re-check failures at the end</span>
+      </label>
+    </section>
+
+    <section class="buttons">
+      <button id="start" class="primary">Start</button>
+      <button id="pause" disabled>Pause</button>
+      <button id="stop" disabled>Stop</button>
+    </section>
+
+    <section class="buttons secondary">
+      <button id="verify" class="ghost">Spot check 30</button>
+      <button id="reset" class="ghost danger">Reset data</button>
+    </section>
+
+    <pre id="log" class="log"></pre>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

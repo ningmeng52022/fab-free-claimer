@@ -25,3 +25,20 @@ jobs:
         run: python -m compileall -q fab_free_claimer
       - name: Unit tests (no network)
         run: python -m unittest discover -s tests -v
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Manifest is valid JSON
+        run: python3 -c "import json;json.load(open('extension/manifest.json'))"
+      - name: Syntax check
+        run: |
+          for file in extension/background.js extension/popup.js extension/lib/*.js; do
+            node --input-type=module --check < "$file"
+          done
+      - name: Extension logic tests
+        run: node --test extension/tests/enum.test.mjs

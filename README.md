@@ -35,6 +35,17 @@ Fab 上免费素材有数万个，手动领取要点上万次。这个工具会�
 | All other free types (material, plugin, decal, audio, …) | ~3.1k |
 | **Total, de-duplicated** | **~46k** |
 
+## Two ways to run it
+
+| | Python CLI | Browser extension |
+|---|---|---|
+| Best for | servers, automation, CI | everyday use in Chrome/Edge |
+| Cookie handling | copy the `cookie` header yourself | **automatic** — the browser already has your session |
+| Install | `pip install` | load the unpacked folder once |
+| Status | stable | stable |
+
+The extension lives in [`extension/`](extension/) — see [extension/README.md](extension/README.md).
+
 ## Install
 
 ```bash
@@ -226,6 +237,14 @@ pip install -r requirements.txt
 ```
 
 需要 Python 3.9+。
+
+### 两种用法
+
+- **命令行（Python）**：适合服务器、自动化、CI，需要手动提供 Cookie
+- **浏览器插件（Chrome/Edge）**：日常使用首选，**不用碰 Cookie**，装好后点「Start」即可
+
+插件安装：`chrome://extensions` → 打开右上角「开发者模式」→「加载已解压的扩展程序」→ 选择 `extension/` 目录。
+也可以用 `./scripts/build-extension.sh` 打包成 zip 分发。详见 [extension/README.md](extension/README.md)。
 
 ### 准备 Cookie
 
