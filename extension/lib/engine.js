@@ -12,10 +12,10 @@ import {
   QUIXEL_SELLERS,
   buildFreePartitions,
   buildQuixelPartitions,
-  collectPartition,
   flattenTree,
+  walkPartition,
 } from "./enum.js";
-import { getAll, getAllKeys, getMeta, putMany, reset, setMeta, stats } from "./db.js";
+import { clear, deleteMany, getAll, getAllKeys, getMeta, putMany, reset, setMeta, stats } from "./db.js";
 
 const TICK_BUDGET_MS = 25000; // stay well inside the worker lifetime
 const HEARTBEAT_MS = 15000;
@@ -64,8 +64,11 @@ export async function start(options) {
     reconcile: Boolean(options.reconcile),
     startedAt: Date.now(),
   });
-  await setMeta(CHECKPOINT_KEY, { phase: "enumerate", enumDone: [], pages: {} });
+  await setMeta(CHECKPOINT_KEY, { phase: "enumerate", enumDone: [], enumState: {} });
   await setMeta(SUMMARY_KEY, { ok: 0, fail: 0, skipped: 0 });
+  // Failures from earlier runs get one more chance; without this a listing that
+  // keeps failing would be skipped forever.
+  await clear("failed");
 }
 
 export async function resume() {
@@ -186,12 +189,19 @@ async function enumerateSlice(control, checkpoint, deadline) {
     }
     if (control.mode !== "free") partitions = partitions.concat(quixel);
 
+    if (!partitions.length) {
+      throw new Error(
+        "no partitions found - the free catalogue looks empty for this session, are you signed in?"
+      );
+    }
     checkpoint.partitions = partitions;
+    checkpoint.enumState = {};
     await setMeta(CHECKPOINT_KEY, checkpoint);
   }
 
   const partitions = checkpoint.partitions;
   const done = new Set(checkpoint.enumDone || []);
+  const state = checkpoint.enumState || (checkpoint.enumState = {});
   const pending = partitions.filter((part) => !done.has(part.params));
   if (!pending.length) return true;
 
@@ -202,21 +212,44 @@ async function enumerateSlice(control, checkpoint, deadline) {
     while (index < pending.length && Date.now() < deadline) {
       const part = pending[index];
       index += 1;
-      const { found } = await collectPartition(part.params, known, control.knownPages);
-      if (found.length) await putMany("listings", found);
-      done.add(part.params);
-      checkpoint.enumDone = [...done];
-      await setMeta(CHECKPOINT_KEY, checkpoint);
+      const resumeFrom = state[part.params] || null;
+
+      const result = await walkPartition({
+        params: part.params,
+        known,
+        knownPages: control.knownPages,
+        startUrl: resumeFrom,
+        deadline,
+        onPage: async ({ found, nextUrl }) => {
+          if (found.length) await putMany("listings", found);
+          state[part.params] = nextUrl;
+          await setMeta(CHECKPOINT_KEY, checkpoint);
+        },
+      });
+
+      if (result.done) {
+        done.add(part.params);
+        delete state[part.params];
+        checkpoint.enumDone = [...done];
+        await setMeta(CHECKPOINT_KEY, checkpoint);
+      }
     }
   });
 
-  return index >= pending.length;
+  return partitions.every((part) => done.has(part.params));
 }
 
 async function claimSlice(control, checkpoint, summary, deadline) {
-  const claimed = new Set(await getAllKeys("claimed"));
-  const listings = await getAll("listings");
-  const pending = listings.filter((listing) => !claimed.has(listing.uid));
+  const [claimedKeys, failedKeys, listings] = await Promise.all([
+    getAllKeys("claimed"),
+    getAllKeys("failed"),
+    getAll("listings"),
+  ]);
+  const claimed = new Set(claimedKeys);
+  // Skipping known failures is what lets a run actually finish: persistent
+  // failures (paid listings, server-side 500s) would otherwise be retried forever.
+  const skip = new Set([...claimed, ...failedKeys]);
+  const pending = listings.filter((listing) => !skip.has(listing.uid));
   if (!pending.length) return true;
 
   let index = 0;
@@ -252,6 +285,10 @@ async function reconcile(summary) {
   });
   if (recovered.length) {
     await putMany("claimed", recovered);
+    await deleteMany(
+      "failed",
+      recovered.map((row) => row.uid)
+    );
     summary.recovered = (summary.recovered || 0) + recovered.length;
   }
   await setMeta(SUMMARY_KEY, summary);

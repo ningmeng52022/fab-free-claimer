@@ -79,6 +79,18 @@ export async function clear(store) {
   });
 }
 
+export async function deleteMany(store, keys) {
+  if (!keys.length) return;
+  const db = await open();
+  await new Promise((resolve, reject) => {
+    const transaction = db.transaction(store, "readwrite");
+    const objectStore = transaction.objectStore(store);
+    for (const key of keys) objectStore.delete(key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
 export async function getMeta(key, fallback = null) {
   const db = await open();
   return new Promise((resolve, reject) => {

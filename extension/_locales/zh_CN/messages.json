@@ -76,10 +76,13 @@
     "message": "选择范围后点击「开始」。"
   },
   "hintEnumerating": {
-    "message": "正在枚举目录（已完成 $1 个分区）…",
+    "message": "正在枚举目录：第 $1 / $2 个分区",
     "placeholders": {
-      "count": {
+      "done": {
         "content": "$1"
+      },
+      "total": {
+        "content": "$2"
       }
     }
   },

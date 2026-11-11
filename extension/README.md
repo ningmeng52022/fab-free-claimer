@@ -40,9 +40,12 @@ Chrome terminates MV3 service workers after ~30 s of inactivity. So the engine n
 runs to completion in one go:
 
 - every tick does ≤ 25 s of work, then saves a checkpoint to IndexedDB
+- the worker then keeps re-entering `tick()` for up to 4 minutes, so throughput stays high
 - a heartbeat keeps the worker alive while a tick runs
 - `chrome.alarms` re-schedules the next tick, even across worker restarts and browser restarts
-- progress is per partition (enumeration) and per listing (claims)
+- progress is saved **after every page** of enumeration and after every claim — a 200-page
+  partition resumes from its cursor instead of starting over
+- listings that keep failing are skipped for the rest of the run, so a run can actually finish
 
 Close the popup freely — work continues in the background. The toolbar badge shows `on`
 while running.

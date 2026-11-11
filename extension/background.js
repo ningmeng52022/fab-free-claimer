@@ -10,6 +10,7 @@ import { AuthError } from "./lib/api.js";
 import * as engine from "./lib/engine.js";
 
 const ALARM = "fab-free-claimer-tick";
+const MAX_CONTINUOUS_MS = 4 * 60 * 1000; // Chrome kills a worker after ~5 min
 
 let ticking = false;
 
@@ -22,16 +23,34 @@ async function schedule(running) {
   }
 }
 
+/**
+ * Run slices back to back while the worker is alive, then fall back to the
+ * alarm. This keeps throughput high without relying on a single long task.
+ */
 async function runTick() {
   if (ticking) return;
   ticking = true;
+  const startedAt = Date.now();
   try {
-    const result = await engine.tick();
-    await schedule(result.remaining);
-    await chrome.action.setBadgeText({
-      text: result.state === "running" ? "on" : result.state === "error" ? "!" : "",
-    });
-    await chrome.action.setBadgeBackgroundColor({ color: "#2f6f4f" });
+    for (;;) {
+      const result = await engine.tick();
+      const running = result.state === "running";
+
+      await chrome.action.setBadgeText({
+        text: running ? "on" : result.state === "error" ? "!" : "",
+      });
+      await chrome.action.setBadgeBackgroundColor({ color: "#2f6f4f" });
+
+      if (!running) {
+        await schedule(false);
+        break;
+      }
+      if (Date.now() - startedAt > MAX_CONTINUOUS_MS) {
+        await schedule(true);
+        break;
+      }
+      if (result.state === "paused" || result.state === "idle") break;
+    }
   } catch (error) {
     console.error("tick failed", error);
     await schedule(true);

@@ -76,10 +76,13 @@
     "message": "Pick a scope and press Start."
   },
   "hintEnumerating": {
-    "message": "Enumerating the catalogue ($1 partitions done)…",
+    "message": "Enumerating: partition $1 / $2",
     "placeholders": {
-      "count": {
+      "done": {
         "content": "$1"
+      },
+      "total": {
+        "content": "$2"
       }
     }
   },

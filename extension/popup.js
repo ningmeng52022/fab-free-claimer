@@ -76,8 +76,16 @@ function renderState(summary) {
 
   const total = counts.listings || 0;
   const done = counts.claimed || 0;
-  els.bar.max = Math.max(total, 1);
-  els.bar.value = Math.min(done, total);
+  const totalParts = (checkpoint.partitions || []).length;
+  const doneParts = (checkpoint.enumDone || []).length;
+
+  if (checkpoint.phase === "enumerate" && state === "running") {
+    els.bar.max = Math.max(totalParts, 1);
+    els.bar.value = Math.min(doneParts, totalParts);
+  } else {
+    els.bar.max = Math.max(total, 1);
+    els.bar.value = Math.min(done, total);
+  }
 
   els.start.disabled = state === "running";
   els.pause.disabled = state !== "running";
@@ -89,7 +97,7 @@ function renderState(summary) {
       ? t("hintAuthError")
       : raw || t("hintAuthError");
   } else if (checkpoint.phase === "enumerate" && state === "running") {
-    els.hint.textContent = t("hintEnumerating", (checkpoint.enumDone || []).length);
+    els.hint.textContent = t("hintEnumerating", doneParts, totalParts);
   } else if (checkpoint.phase === "claim" && state === "running") {
     els.hint.textContent = t("hintClaiming", done, total);
   } else if (total && done >= total) {

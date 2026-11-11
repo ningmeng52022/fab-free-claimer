@@ -85,21 +85,30 @@ export function toListing(item) {
 }
 
 /**
- * Walk one partition and return newly discovered free listings.
+ * Walk one partition page by page, checkpointing after every page.
  *
- * knownPages > 0 enables incremental mode: results are requested newest-first
- * and the walk stops once that many consecutive pages contain nothing new.
+ * A partition can be 200+ pages deep (~8 minutes), far longer than a service
+ * worker lives, so the caller must be able to resume from `nextUrl`.
+ *
+ * @returns {Promise<{done: boolean, nextUrl: string|null}>}
  */
-export async function collectPartition(params, known, knownPages = 0) {
-  const query = knownPages ? `${params}&sort_by=-publishedAt` : params;
-  const found = [];
-  let url = query;
+export async function walkPartition({
+  params,
+  known,
+  knownPages = 0,
+  startUrl = null,
+  deadline = 0,
+  onPage = null,
+}) {
+  const first = knownPages ? `${params}&sort_by=-publishedAt` : params;
+  let url = startUrl || first;
   let pages = 0;
   let streak = 0;
 
   while (url && pages < PAGE_LIMIT) {
     const page = await search(url);
     pages += 1;
+    const found = [];
     for (const item of page.results || []) {
       const listing = toListing(item);
       if (listing && !known.has(listing.uid)) {
@@ -110,11 +119,38 @@ export async function collectPartition(params, known, knownPages = 0) {
         streak += 1;
       }
     }
-    if (knownPages && streak >= knownPages * PAGE_SIZE) break;
-    url = page.next || null;
+
+    const stopByStreak = knownPages > 0 && streak >= knownPages * PAGE_SIZE;
+    const nextUrl = page.next || null;
+    const done = !nextUrl || stopByStreak;
+
+    if (onPage) await onPage({ found, nextUrl: done ? null : nextUrl, done });
+    if (done) return { done: true, nextUrl: null };
+    url = nextUrl;
+
+    if (deadline && Date.now() > deadline) return { done: false, nextUrl: url };
   }
 
-  const capped = Boolean(url) && pages >= PAGE_LIMIT;
-  if (capped) console.warn("deep-pagination cap reached:", params);
-  return { found, pages, capped };
+  if (url) console.warn("deep-pagination cap reached:", params);
+  return { done: true, nextUrl: null };
+}
+
+/**
+ * In-memory variant used by the tests: returns everything found in one go.
+ */
+export async function collectPartition(params, known, knownPages = 0) {
+  const found = [];
+  let pages = 0;
+  const counter = { count: 0 };
+  await walkPartition({
+    params,
+    known,
+    knownPages,
+    onPage: ({ found: pageFound, done }) => {
+      found.push(...pageFound);
+      counter.count += 1;
+      if (done) pages = counter.count;
+    },
+  });
+  return { found, pages: pages || counter.count, capped: false };
 }
