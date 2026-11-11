@@ -47,6 +47,16 @@ runs to completion in one go:
 Close the popup freely — work continues in the background. The toolbar badge shows `on`
 while running.
 
+## Language
+
+The popup follows your browser UI language via `chrome.i18n`. Chinese (`zh_CN`) is the
+default locale, so a Chinese browser shows Chinese; any other language falls back to
+English. To add a language, drop a `_locales/<code>/messages.json` next to the existing
+ones — the key list is identical (45 keys).
+
+界面文案通过 `chrome.i18n` 跟随浏览器语言，中文为默认语言，其他语言回退到英文。
+新增语言只需在 `_locales/` 下加一个目录，键名与现有 45 个保持一致。
+
 ## Permissions
 
 | Permission | Why |

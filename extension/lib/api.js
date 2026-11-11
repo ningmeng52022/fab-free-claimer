@@ -14,6 +14,15 @@ let csrfToken = null;
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Localized string with a safe fallback (chrome.i18n is absent in tests). */
+function t(key, fallback) {
+  try {
+    return chrome.i18n.getMessage(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 async function csrf() {
   if (csrfToken) return csrfToken;
   const cookie = await chrome.cookies.get({
@@ -22,7 +31,7 @@ async function csrf() {
   });
   if (!cookie) {
     throw new AuthError(
-      "fab_csrftoken cookie not found - open fab.com and sign in first."
+      t("errNoCsrf", "fab_csrftoken cookie not found - open fab.com and sign in first.")
     );
   }
   csrfToken = cookie.value;

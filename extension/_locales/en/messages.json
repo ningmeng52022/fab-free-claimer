@@ -1,0 +1,205 @@
+{
+  "extName": {
+    "message": "Fab Free Claimer",
+    "description": "Extension name shown in the toolbar and store listing"
+  },
+  "extDesc": {
+    "message": "Bulk-claim every free asset on Fab into your library. Resumable and incremental."
+  },
+  "actionTitle": {
+    "message": "Fab Free Claimer"
+  },
+  "accountLabel": {
+    "message": "Account"
+  },
+  "listingsLabel": {
+    "message": "Listings found"
+  },
+  "claimedLabel": {
+    "message": "Claimed"
+  },
+  "failedLabel": {
+    "message": "Failed"
+  },
+  "runLabel": {
+    "message": "This run"
+  },
+  "notSignedIn": {
+    "message": "not signed in"
+  },
+  "scopeLabel": {
+    "message": "Scope"
+  },
+  "scopeAll": {
+    "message": "Everything free"
+  },
+  "scopeFree": {
+    "message": "All free types (no Quixel)"
+  },
+  "scopeQuixel": {
+    "message": "Quixel only"
+  },
+  "incrementalLabel": {
+    "message": "Incremental (only new releases)"
+  },
+  "reconcileLabel": {
+    "message": "Re-check failures at the end"
+  },
+  "startBtn": {
+    "message": "Start"
+  },
+  "pauseBtn": {
+    "message": "Pause"
+  },
+  "stopBtn": {
+    "message": "Stop"
+  },
+  "verifyBtn": {
+    "message": "Spot check 30"
+  },
+  "resetBtn": {
+    "message": "Reset data"
+  },
+  "badgeIdle": {
+    "message": "idle"
+  },
+  "badgeRunning": {
+    "message": "running"
+  },
+  "badgePaused": {
+    "message": "paused"
+  },
+  "badgeError": {
+    "message": "error"
+  },
+  "hintIdle": {
+    "message": "Pick a scope and press Start."
+  },
+  "hintEnumerating": {
+    "message": "Enumerating the catalogue ($1 partitions done)…",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "hintClaiming": {
+    "message": "Claiming: $1 / $2",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "hintDone": {
+    "message": "Everything free is in your library. Tick Incremental to catch new releases."
+  },
+  "hintPaused": {
+    "message": "Paused. Progress is saved."
+  },
+  "hintAuthError": {
+    "message": "Session expired - sign in to fab.com again."
+  },
+  "hintWorkerDown": {
+    "message": "Background worker unavailable - reload the extension."
+  },
+  "confirmReset": {
+    "message": "Delete all local listings and claim history? Your Fab library is not touched."
+  },
+  "logStart": {
+    "message": "start: $1",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStartIncremental": {
+    "message": "start: $1 (incremental)",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStopped": {
+    "message": "stopped"
+  },
+  "logVerifying": {
+    "message": "spot checking 30 claimed listings…"
+  },
+  "logVerifyResult": {
+    "message": "spot check: $1/$2 owned",
+    "placeholders": {
+      "owned": {
+        "content": "$1"
+      },
+      "checked": {
+        "content": "$2"
+      }
+    }
+  },
+  "logResetDone": {
+    "message": "local data cleared"
+  },
+  "logStartFailed": {
+    "message": "start failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logPauseFailed": {
+    "message": "pause failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStopFailed": {
+    "message": "stop failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logVerifyFailed": {
+    "message": "verify failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logResetFailed": {
+    "message": "reset failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logFinished": {
+    "message": "finished: ok=$1 fail=$2 recovered=$3",
+    "placeholders": {
+      "ok": {
+        "content": "$1"
+      },
+      "fail": {
+        "content": "$2"
+      },
+      "recovered": {
+        "content": "$3"
+      }
+    }
+  },
+  "errNoCsrf": {
+    "message": "fab_csrftoken cookie not found - sign in to fab.com first."
+  }
+}

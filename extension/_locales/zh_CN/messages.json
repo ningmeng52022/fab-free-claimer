@@ -1,0 +1,205 @@
+{
+  "extName": {
+    "message": "Fab 免费素材领取器",
+    "description": "Extension name shown in the toolbar and store listing"
+  },
+  "extDesc": {
+    "message": "批量领取 Fab 上的全部免费素材到你的素材库。支持断点续跑与增量同步。"
+  },
+  "actionTitle": {
+    "message": "Fab 免费素材领取器"
+  },
+  "accountLabel": {
+    "message": "账号"
+  },
+  "listingsLabel": {
+    "message": "已发现"
+  },
+  "claimedLabel": {
+    "message": "已领取"
+  },
+  "failedLabel": {
+    "message": "失败"
+  },
+  "runLabel": {
+    "message": "本次运行"
+  },
+  "notSignedIn": {
+    "message": "未登录"
+  },
+  "scopeLabel": {
+    "message": "范围"
+  },
+  "scopeAll": {
+    "message": "全部免费素材"
+  },
+  "scopeFree": {
+    "message": "全部免费类型（不含 Quixel）"
+  },
+  "scopeQuixel": {
+    "message": "仅 Quixel"
+  },
+  "incrementalLabel": {
+    "message": "增量模式（只领新上架）"
+  },
+  "reconcileLabel": {
+    "message": "结束时复查失败项"
+  },
+  "startBtn": {
+    "message": "开始"
+  },
+  "pauseBtn": {
+    "message": "暂停"
+  },
+  "stopBtn": {
+    "message": "停止"
+  },
+  "verifyBtn": {
+    "message": "抽查 30 条"
+  },
+  "resetBtn": {
+    "message": "清空数据"
+  },
+  "badgeIdle": {
+    "message": "空闲"
+  },
+  "badgeRunning": {
+    "message": "运行中"
+  },
+  "badgePaused": {
+    "message": "已暂停"
+  },
+  "badgeError": {
+    "message": "出错"
+  },
+  "hintIdle": {
+    "message": "选择范围后点击「开始」。"
+  },
+  "hintEnumerating": {
+    "message": "正在枚举目录（已完成 $1 个分区）…",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "hintClaiming": {
+    "message": "正在领取：$1 / $2",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "hintDone": {
+    "message": "免费素材已全部入库。勾选「增量模式」可补齐新上架资源。"
+  },
+  "hintPaused": {
+    "message": "已暂停，进度已保存。"
+  },
+  "hintAuthError": {
+    "message": "登录态失效，请重新登录 fab.com 后再试。"
+  },
+  "hintWorkerDown": {
+    "message": "后台服务不可用，请重新加载扩展。"
+  },
+  "confirmReset": {
+    "message": "确定清空本地清单与领取记录？不会影响你的 Fab 素材库。"
+  },
+  "logStart": {
+    "message": "开始：$1",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStartIncremental": {
+    "message": "开始：$1（增量模式）",
+    "placeholders": {
+      "scope": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStopped": {
+    "message": "已停止"
+  },
+  "logVerifying": {
+    "message": "正在抽查 30 条已领取素材…"
+  },
+  "logVerifyResult": {
+    "message": "抽查结果：$1 / $2 已入库",
+    "placeholders": {
+      "owned": {
+        "content": "$1"
+      },
+      "checked": {
+        "content": "$2"
+      }
+    }
+  },
+  "logResetDone": {
+    "message": "本地数据已清空"
+  },
+  "logStartFailed": {
+    "message": "启动失败：$1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logPauseFailed": {
+    "message": "暂停失败：$1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logStopFailed": {
+    "message": "停止失败：$1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logVerifyFailed": {
+    "message": "复核失败：$1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logResetFailed": {
+    "message": "清空失败：$1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "logFinished": {
+    "message": "已完成：成功 $1，失败 $2，修正 $3",
+    "placeholders": {
+      "ok": {
+        "content": "$1"
+      },
+      "fail": {
+        "content": "$2"
+      },
+      "recovered": {
+        "content": "$3"
+      }
+    }
+  },
+  "errNoCsrf": {
+    "message": "找不到 fab_csrftoken，请先在浏览器里登录 fab.com。"
+  }
+}

@@ -1,70 +1,70 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <title>Fab Free Claimer</title>
+    <title>Fab 免费素材领取器</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <header>
-      <h1>Fab Free Claimer</h1>
-      <span id="badge" class="badge idle">idle</span>
+      <h1 data-i18n="extName">Fab 免费素材领取器</h1>
+      <span id="badge" class="badge idle" data-i18n="badgeIdle">空闲</span>
     </header>
 
     <section class="account">
       <div class="row">
-        <span class="label">Account</span>
-        <span id="account">-</span>
+        <span class="label" data-i18n="accountLabel">账号</span>
+        <span id="account" data-i18n="notSignedIn">未登录</span>
       </div>
       <div class="row">
-        <span class="label">Listings found</span>
+        <span class="label" data-i18n="listingsLabel">已发现</span>
         <span id="listings">0</span>
       </div>
       <div class="row">
-        <span class="label">Claimed</span>
+        <span class="label" data-i18n="claimedLabel">已领取</span>
         <span id="claimed">0</span>
       </div>
       <div class="row">
-        <span class="label">Failed</span>
+        <span class="label" data-i18n="failedLabel">失败</span>
         <span id="failed">0</span>
       </div>
       <div class="row">
-        <span class="label">This run</span>
+        <span class="label" data-i18n="runLabel">本次运行</span>
         <span id="run">-</span>
       </div>
     </section>
 
     <progress id="bar" value="0" max="1"></progress>
-    <p id="hint" class="hint"></p>
+    <p id="hint" class="hint" data-i18n="hintIdle">选择范围后点击「开始」。</p>
 
     <section class="controls">
       <label class="field">
-        <span>Scope</span>
+        <span data-i18n="scopeLabel">范围</span>
         <select id="mode">
-          <option value="all">Everything free</option>
-          <option value="free">All free types (no Quixel)</option>
-          <option value="quixel">Quixel only</option>
+          <option value="all" data-i18n="scopeAll">全部免费素材</option>
+          <option value="free" data-i18n="scopeFree">全部免费类型（不含 Quixel）</option>
+          <option value="quixel" data-i18n="scopeQuixel">仅 Quixel</option>
         </select>
       </label>
       <label class="field checkbox">
         <input type="checkbox" id="incremental" />
-        <span>Incremental (only new releases)</span>
+        <span data-i18n="incrementalLabel">增量模式（只领新上架）</span>
       </label>
       <label class="field checkbox">
         <input type="checkbox" id="reconcile" checked />
-        <span>Re-check failures at the end</span>
+        <span data-i18n="reconcileLabel">结束时复查失败项</span>
       </label>
     </section>
 
     <section class="buttons">
-      <button id="start" class="primary">Start</button>
-      <button id="pause" disabled>Pause</button>
-      <button id="stop" disabled>Stop</button>
+      <button id="start" class="primary" data-i18n="startBtn">开始</button>
+      <button id="pause" disabled data-i18n="pauseBtn">暂停</button>
+      <button id="stop" disabled data-i18n="stopBtn">停止</button>
     </section>
 
     <section class="buttons secondary">
-      <button id="verify" class="ghost">Spot check 30</button>
-      <button id="reset" class="ghost danger">Reset data</button>
+      <button id="verify" class="ghost" data-i18n="verifyBtn">抽查 30 条</button>
+      <button id="reset" class="ghost danger" data-i18n="resetBtn">清空数据</button>
     </section>
 
     <pre id="log" class="log"></pre>
